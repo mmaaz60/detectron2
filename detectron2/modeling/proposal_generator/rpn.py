@@ -305,12 +305,13 @@ class RPN(nn.Module):
     @torch.jit.unused
     @torch.no_grad()
     def label_and_sample_anchors(
-        self, anchors: List[Boxes], gt_instances: List[Instances]
+        self, anchors: List[Boxes], gt_instances: List[Instances], ca_boxes: Optional[Dict] = None
     ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         """
         Args:
             anchors (list[Boxes]): anchors for each feature map.
             gt_instances: the ground-truth instances for each image.
+            ca_boxes: Class agnostic boxes from off the shelf detector
 
         Returns:
             list[Tensor]:
@@ -326,16 +327,22 @@ class RPN(nn.Module):
 
         gt_boxes = [x.gt_boxes for x in gt_instances]
         image_sizes = [x.image_size for x in gt_instances]
+        # Create ca_boxes
+        ca_boxes_gt = []
+        for ca_box_i in ca_boxes:
+            ca_boxes_gt.append(Boxes(ca_box_i))
         del gt_instances
+        del ca_boxes
 
         gt_labels = []
         matched_gt_boxes = []
-        for image_size_i, gt_boxes_i in zip(image_sizes, gt_boxes):
+        for image_size_i, gt_boxes_i, ca_boxes_i in zip(image_sizes, gt_boxes, ca_boxes_gt):
             """
             image_size_i: (h, w) for the i-th image
             gt_boxes_i: ground-truth boxes for i-th image
             """
 
+            gt_boxes_i = Boxes.cat([gt_boxes_i, ca_boxes_i])
             match_quality_matrix = retry_if_cuda_oom(pairwise_iou)(gt_boxes_i, anchors)
             matched_idxs, gt_labels_i = retry_if_cuda_oom(self.anchor_matcher)(match_quality_matrix)
             # Matching is memory-expensive and may result in CPU tensors. But the result is small
@@ -433,6 +440,7 @@ class RPN(nn.Module):
         images: ImageList,
         features: Dict[str, torch.Tensor],
         gt_instances: Optional[List[Instances]] = None,
+        ca_boxes: Optional[torch.Tensor] = None,
     ):
         """
         Args:
@@ -443,6 +451,7 @@ class RPN(nn.Module):
                 vary between feature maps (e.g., if a feature pyramid is used).
             gt_instances (list[Instances], optional): a length `N` list of `Instances`s.
                 Each `Instances` stores ground-truth instances for the corresponding image.
+            ca_boxes: Boxes from class agnostic object detector to improvise the RPN
 
         Returns:
             proposals: list[Instances]: contains fields "proposal_boxes", "objectness_logits"
@@ -468,7 +477,7 @@ class RPN(nn.Module):
 
         if self.training:
             assert gt_instances is not None, "RPN requires gt_instances in training!"
-            gt_labels, gt_boxes = self.label_and_sample_anchors(anchors, gt_instances)
+            gt_labels, gt_boxes = self.label_and_sample_anchors(anchors, gt_instances, ca_boxes)
             losses = self.losses(
                 anchors, pred_objectness_logits, gt_labels, pred_anchor_deltas, gt_boxes
             )

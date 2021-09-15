@@ -151,10 +151,14 @@ class GeneralizedRCNN(nn.Module):
         else:
             gt_instances = None
 
+        ca_dets_boxes = []
+        if "ca_dets" in batched_inputs[0]:
+            ca_dets_boxes = [x["ca_dets"].to(self.device) for x in batched_inputs]
+
         features = self.backbone(images.tensor)
 
         if self.proposal_generator is not None:
-            proposals, proposal_losses = self.proposal_generator(images, features, gt_instances)
+            proposals, proposal_losses = self.proposal_generator(images, features, gt_instances, ca_dets_boxes)
         else:
             assert "proposals" in batched_inputs[0]
             proposals = [x["proposals"].to(self.device) for x in batched_inputs]
