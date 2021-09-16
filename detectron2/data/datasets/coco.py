@@ -6,6 +6,7 @@ import json
 import logging
 import time
 import torch
+import pickle
 
 import numpy as np
 import os
@@ -155,38 +156,12 @@ Category ids in annotations are not in [1, #categories]! We'll apply a mapping f
 
     # Load the MDETR class agnostic detections if available
     mdetr_dets = {}
-    mdetr_dets_path = f"{json_file.split('.')[0]}_mdetr_dets"
+    mdetr_dets_path = f"{json_file.split('.')[0]}_mdetr_dets.pkl"
     if os.path.exists(mdetr_dets_path):
         logger.info(f"Looading {mdetr_dets_path}")
         start = time.time()
-        def parse_det_txt(path, top_N=30):
-            if os.path.exists(path):
-                with open(path, "r") as f:
-                    lines = f.readlines()
-                boxes = []
-                scores = []
-                for line in lines:
-                    content = line.rstrip().split(' ')
-                    bbox = content[2:]
-                    boxes.append([int(b) for b in bbox])
-                    scores.append(float(content[1]))
-
-                if top_N < len(boxes):
-                    # Select only the top-N boxes
-                    scores = np.array(scores)
-                    boxes = np.array(boxes)
-                    sorted_ind = np.argsort(-scores)
-                    sorted_ind = sorted_ind[:top_N]
-                    boxes = boxes[sorted_ind, :]
-                    scores = scores[sorted_ind]
-                    boxes = boxes.tolist()
-                    scores = scores.tolist()
-
-                return boxes, scores
-            else:
-                return [], []
-        for image in os.listdir(mdetr_dets_path):
-            mdetr_dets[image.split('.')[0]] = parse_det_txt(f"{mdetr_dets_path}/{image}")
+        with open(mdetr_dets_path, "rb") as f:
+            mdetr_dets = pickle.load(f)
         logger.info(f"It took {time.time() - start} seconds to load the mdetr detections.")
     for (img_dict, anno_dict_list) in imgs_anns:
         record = {}
