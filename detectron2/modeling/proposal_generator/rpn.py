@@ -344,23 +344,23 @@ class RPN(nn.Module):
             gt_boxes_i: ground-truth boxes for i-th image
             """
 
-            gt_boxes_i = Boxes.cat([gt_boxes_i, ca_boxes_i])
+            # gt_boxes_i = Boxes.cat([gt_boxes_i, ca_boxes_i])
             match_quality_matrix = retry_if_cuda_oom(pairwise_iou)(gt_boxes_i, anchors)
             matched_idxs, gt_labels_i = retry_if_cuda_oom(self.anchor_matcher)(match_quality_matrix)
             # Matching is memory-expensive and may result in CPU tensors. But the result is small
             gt_labels_i = gt_labels_i.to(device=gt_boxes_i.device)
             del match_quality_matrix
 
-            # # Label the anchors using ca_boxes
-            # match_quality_matrix_ca = retry_if_cuda_oom(pairwise_iou)(ca_boxes_i, anchors)
-            # matched_idxs_ca, gt_labels_i_ca = retry_if_cuda_oom(self.anchor_matcher)(match_quality_matrix_ca)
-            # # Matching is memory-expensive and may result in CPU tensors. But the result is small
-            # gt_labels_i_ca = gt_labels_i_ca.to(device=gt_boxes_i.device)
-            # del match_quality_matrix_ca
+            # Label the anchors using ca_boxes
+            match_quality_matrix_ca = retry_if_cuda_oom(pairwise_iou)(ca_boxes_i, anchors)
+            matched_idxs_ca, gt_labels_i_ca = retry_if_cuda_oom(self.anchor_matcher)(match_quality_matrix_ca)
+            # Matching is memory-expensive and may result in CPU tensors. But the result is small
+            gt_labels_i_ca = gt_labels_i_ca.to(device=gt_boxes_i.device)
+            del match_quality_matrix_ca
 
-            # # Merge ca labels with gt_labels
-            # ca_mask = gt_labels_i_ca == 1
-            # gt_labels_i[ca_mask] = 1
+            # Merge ca labels with gt_labels
+            ca_mask = gt_labels_i_ca == 1
+            gt_labels_i[ca_mask] = 1
 
             if self.anchor_boundary_thresh >= 0:
                 # Discard anchors that go out of the boundaries of the image
