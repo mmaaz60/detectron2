@@ -232,6 +232,7 @@ Category ids in annotations are not in [1, #categories]! We'll apply a mapping f
         if dict_key in mdetr_dets.keys():
             boxes, scores = mdetr_dets[dict_key]
             record["ca_dets"] = torch.tensor(boxes)
+            record["ca_dets_scores"] = torch.tensor(scores)
         dataset_dicts.append(record)
 
     if num_instances_without_valid_segmentation > 0:

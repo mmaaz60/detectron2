@@ -181,6 +181,9 @@ class Boxes:
     def add(self, boxes):
         self.tensor = torch.cat([boxes.reshape((len(boxes), 4)), self.tensor])
 
+    def override(self, boxes):
+        self.tensor = boxes
+
     def area(self) -> torch.Tensor:
         """
         Computes the area of all the boxes.
