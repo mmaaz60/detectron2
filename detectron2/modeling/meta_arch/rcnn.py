@@ -175,6 +175,21 @@ class GeneralizedRCNN(nn.Module):
         losses.update(proposal_losses)
         return losses
 
+    def _add_boxes_to_proposals(self, proposals, boxes, objectness=0.8):
+        if proposals is not None:
+            for p, b in zip(proposals, boxes):
+                boxes_to_add = []
+                objectness_logits_to_add = []
+                curr_objectness = torch.max(p.objectness_logits) * objectness
+                for box in b:
+                    h, w = p.image_size
+                    boxes_to_add.append([box[0] * w, box[1] * h, box[2] * w, box[3] * h])
+                    objectness_logits_to_add.append(curr_objectness)
+                p.proposal_boxes.add(torch.tensor(boxes_to_add, device="cuda"))
+                p.objectness_logits = torch.cat([torch.tensor(objectness_logits_to_add, device="cuda"),
+                                                 p.objectness_logits])
+        return proposals
+
     def inference(
         self,
         batched_inputs: List[Dict[str, torch.Tensor]],
@@ -203,12 +218,18 @@ class GeneralizedRCNN(nn.Module):
         images = self.preprocess_image(batched_inputs)
         features = self.backbone(images.tensor)
 
+        # Get the MDETR boxes
+        ca_dets_boxes = []
+        if "ca_dets" in batched_inputs[0]:
+            ca_dets_boxes = [x["ca_dets"].to(self.device) for x in batched_inputs]
+
         if detected_instances is None:
             if self.proposal_generator is not None:
                 proposals, _ = self.proposal_generator(images, features, None)
             else:
                 assert "proposals" in batched_inputs[0]
                 proposals = [x["proposals"].to(self.device) for x in batched_inputs]
+            proposals = self._add_boxes_to_proposals(proposals, ca_dets_boxes)
 
             results, _ = self.roi_heads(images, features, proposals, None)
         else:

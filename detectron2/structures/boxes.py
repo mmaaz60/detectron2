@@ -178,6 +178,9 @@ class Boxes:
         # Boxes are assumed float32 and does not support to(dtype)
         return Boxes(self.tensor.to(device=device))
 
+    def add(self, boxes):
+        self.tensor = torch.cat([boxes.reshape((len(boxes), 4)), self.tensor])
+
     def area(self) -> torch.Tensor:
         """
         Computes the area of all the boxes.
